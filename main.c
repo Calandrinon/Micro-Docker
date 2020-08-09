@@ -1,3 +1,4 @@
+#define _GNU_SOURCE 
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -5,6 +6,15 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sched.h>
+#include <signal.h>
+#define STACKSIZE (1024*1024)
+
+
+typedef struct {
+    char* name;
+    char** arguments;
+} Command;
 
 
 char** create_exec_arguments(int argc, char* argv[]) {
@@ -19,29 +29,41 @@ char** create_exec_arguments(int argc, char* argv[]) {
 }
 
 
+int execute_command(void* arg) {
+    Command* command = (Command*)arg;
+    execvp(command->name, command->arguments);
+    return 0;
+}
+
+
 void run(int argc, char* argv[]) {
     char** args = create_exec_arguments(argc, argv);
+    Command command = {argv[2], args};
+   	void* stack = (void*)malloc(sizeof(char)*STACKSIZE);
+    void* stack_size = stack + STACKSIZE - 1;
+    int pid = clone(execute_command, stack_size, SIGCHLD | CLONE_NEWUTS, (void*)&command);
 
-    int pid = fork();
-    if (pid == 0) {
-        execvp(argv[2], args);
+    if (pid == -1) {
+        printf("Clone failed!\n");
+        exit(1);
     }
-    wait(0);
-	printf("Process terminated!\n");
+
+    waitpid(pid, NULL, 0);
     free(args);
+    free(stack);
 }
 
 
 int main(int argc, char* argv[]) {
     if (argc == 1) {
-        printf("Usage: micro-docker [program] [parameters]\n");
+        printf("Usage: micro-docker [option] [executable and parameters]\n");
         return 0;
     }
 
     if (!strcmp(argv[1], "run")) {
         run(argc, argv);
     } else {
-        printf("Incorrect action");
+        printf("Option does not exist!\n");
     }
 
     return 0;
