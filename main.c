@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/mount.h>
 #include <sched.h>
 #include <signal.h>
 #define STACKSIZE (1024*1024)
@@ -49,6 +50,7 @@ int child(void* arg) {
 	clear_environment_variables();
 	chroot("./root");
 	chdir("/");
+	mount("proc", "/proc", "proc", 0, 0);
 
     void* stack = (void*)malloc(sizeof(char)*STACKSIZE);
     void* stack_size = stack + STACKSIZE - 1;
@@ -60,6 +62,7 @@ int child(void* arg) {
     }
 
     waitpid(pid, NULL, 0);
+	umount("/proc");
     free(stack);
     return 0;
 }
