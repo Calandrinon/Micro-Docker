@@ -17,6 +17,12 @@ typedef struct {
 } Command;
 
 
+void clear_environment_variables() {
+	clearenv();
+	setenv("PATH", "/usr/bin/:/usr/sbin/:/bin/:/sbin/", 0);
+}
+
+
 char** create_exec_arguments(int argc, char* argv[]) {
     char** exec_args = (char**)malloc(sizeof(char*) * (argc - 1));
 
@@ -40,6 +46,9 @@ int child(void* arg) {
 	printf("Child PID: %d\n", getpid());
     char container_hostname[] = "insert_random_hostname";
     sethostname(container_hostname, strlen(container_hostname));
+	clear_environment_variables();
+	chroot("./root");
+	chdir("/");
 
     void* stack = (void*)malloc(sizeof(char)*STACKSIZE);
     void* stack_size = stack + STACKSIZE - 1;
