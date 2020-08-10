@@ -18,39 +18,59 @@ typedef struct {
 
 
 char** create_exec_arguments(int argc, char* argv[]) {
-    char** exec_args = (char**)malloc(sizeof(char*) * (argc - 1)); 
+	char** exec_args = (char**)malloc(sizeof(char*) * (argc - 1)); 
 
-    for (int arg_index = 0; arg_index < argc - 2; arg_index++) {
-        exec_args[arg_index] = argv[arg_index + 2];
+	for (int arg_index = 0; arg_index < argc - 2; arg_index++) {
+		exec_args[arg_index] = argv[arg_index + 2];
     }
 
-    exec_args[argc - 2] = NULL;
-    return exec_args;
+	exec_args[argc - 2] = NULL;
+	return exec_args;
 }
 
 
 int execute_command(void* arg) {
-    Command* command = (Command*)arg;
-    execvp(command->name, command->arguments);
+	Command* command = (Command*)arg;
+	execvp(command->name, command->arguments);
     return 0;
 }
 
 
-void run(int argc, char* argv[]) {
-    char** args = create_exec_arguments(argc, argv);
-    Command command = {argv[2], args};
-   	void* stack = (void*)malloc(sizeof(char)*STACKSIZE);
-    void* stack_size = stack + STACKSIZE - 1;
-    int pid = clone(execute_command, stack_size, SIGCHLD | CLONE_NEWUTS, (void*)&command);
+int child(void* arg) {
+	char container_hostname[] = "insert_random_hostname";
+	sethostname(container_hostname, strlen(container_hostname));
 
-    if (pid == -1) {
-        printf("Clone failed!\n");
-        exit(1);
+	void* stack = (void*)malloc(sizeof(char)*STACKSIZE);
+	void* stack_size = stack + STACKSIZE - 1;
+	int pid = clone(execute_command, stack_size, SIGCHLD, arg);
+
+	if (pid == -1) {
+		printf("Clone failed!\n");
+		exit(1);
+	}
+
+	waitpid(pid, NULL, 0);
+	free(stack);
+	return 0;
+}
+
+
+void parent(int argc, char* argv[]) {
+	char** args = create_exec_arguments(argc, argv);
+	Command command = {argv[2], args};
+
+	void* stack = (void*)malloc(sizeof(char)*STACKSIZE);
+	void* stack_size = stack + STACKSIZE - 1;
+	int pid = clone(child, stack_size, SIGCHLD | CLONE_NEWUTS, (void*)&command);
+
+	if (pid == -1) {
+		printf("Clone failed!\n");
+		exit(1);
     }
 
-    waitpid(pid, NULL, 0);
-    free(args);
-    free(stack);
+	waitpid(pid, NULL, 0);
+	free(args);
+	free(stack);
 }
 
 
@@ -61,7 +81,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (!strcmp(argv[1], "run")) {
-        run(argc, argv);
+        parent(argc, argv);
     } else {
         printf("Option does not exist!\n");
     }
